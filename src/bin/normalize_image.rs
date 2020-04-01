@@ -32,7 +32,9 @@ fn main() -> io::Result<()> {
     debug!("{:?}", options);
 
     let img = image::open(options.input).unwrap();
-    let mut normalized_image = rusty_herbarium::crop_image(img, 25, 25, 75, 125);
+    // 680x1000
+    // 620x780
+    let mut normalized_image = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
     image::imageops::invert(&mut normalized_image);
     image::imageops::brighten(&mut normalized_image, 30);
     image::imageops::contrast(&mut normalized_image, 60.0);
@@ -42,7 +44,7 @@ fn main() -> io::Result<()> {
     // let resized_image = image::imageops::resize(&normalized_image, 85, 112, image::imageops::FilterType::Gaussian);
     // let resized_image = image::imageops::resize(&normalized_image, 315, 400, image::imageops::FilterType::Gaussian);
     // let resized_image = image::imageops::resize(&normalized_image, 520, 660, image::imageops::FilterType::Gaussian);
-    let resized_image = image::imageops::resize(&normalized_image, 236, 300, image::imageops::FilterType::Gaussian);
+    let resized_image = image::imageops::resize(&normalized_image, 310, 390, image::imageops::FilterType::Gaussian);
     resized_image.save(options.output).ok();
 
     info!("Duration: {}", format_duration(start.elapsed()).to_string());
