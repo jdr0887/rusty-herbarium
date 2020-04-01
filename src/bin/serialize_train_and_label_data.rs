@@ -90,11 +90,11 @@ fn main() -> io::Result<()> {
     debug!("rows: {}", rows);
     let image_path_by_category_map_keys: Vec<_> = image_path_by_category_map.keys().cloned().collect();
 
-    // let mut labels: Vec<f32> = Vec::with_capacity(10);
-    // let mut train_data = array::sparse::SparseRowArray::zeros(10, col_size);
+    let mut labels: Vec<f32> = Vec::with_capacity(20);
+    let mut train_data = array::sparse::SparseRowArray::zeros(20, col_size);
 
-    let mut labels: Vec<f32> = Vec::with_capacity(rows);
-    let mut train_data = array::sparse::SparseRowArray::zeros(rows, col_size);
+    // let mut labels: Vec<f32> = Vec::with_capacity(rows);
+    // let mut train_data = array::sparse::SparseRowArray::zeros(rows, col_size);
 
     for (i, category_id) in image_path_by_category_map_keys.iter().enumerate() {
         labels.push(*category_id as f32);
@@ -135,9 +135,9 @@ fn main() -> io::Result<()> {
                 }
             }
         }
-        // if i == 9 {
-        //     break;
-        // }
+        if i == 19 {
+            break;
+        }
     }
 
     let mut training_labels_output = options.output_dir.clone();
@@ -146,6 +146,7 @@ fn main() -> io::Result<()> {
 
     let training_labels_writer = io::BufWriter::new(fs::File::create(training_labels_output.as_path()).unwrap());
     let mut training_labels_encoder = GzEncoder::new(training_labels_writer, Compression::default());
+    //bincode::serialize_into(&mut training_labels_encoder, &array::dense::Array::from(labels)).unwrap();
     bincode::serialize_into(&mut training_labels_encoder, &labels).unwrap();
 
     let mut training_data_output = options.output_dir.clone();
