@@ -14,6 +14,7 @@ use flate2::Compression;
 use humantime::format_duration;
 use itertools::Itertools;
 use log::Level;
+use rayon::prelude::*;
 use rustlearn::array;
 use rustlearn::prelude::*;
 use std::collections;
@@ -89,8 +90,8 @@ fn main() -> io::Result<()> {
     debug!("rows: {}", rows);
     let image_path_by_category_map_keys: Vec<_> = image_path_by_category_map.keys().cloned().collect();
 
-    // let mut labels: Vec<f32> = Vec::with_capacity(5);
-    // let mut train_data = array::sparse::SparseRowArray::zeros(5, col_size);
+    // let mut labels: Vec<f32> = Vec::with_capacity(10);
+    // let mut train_data = array::sparse::SparseRowArray::zeros(10, col_size);
 
     let mut labels: Vec<f32> = Vec::with_capacity(rows);
     let mut train_data = array::sparse::SparseRowArray::zeros(rows, col_size);
@@ -98,44 +99,43 @@ fn main() -> io::Result<()> {
     for (i, category_id) in image_path_by_category_map_keys.iter().enumerate() {
         labels.push(*category_id as f32);
         debug!("category_id: {}", category_id);
-        for image_paths in image_path_by_category_map.get(category_id) {
-            for image_path in image_paths.iter() {
-                // debug!("image_path: {}", image_path.to_string_lossy());
 
-                let img = image::open(image_path.as_path()).unwrap();
-                // risk cropping more from the bottom as roots don't offer identifying species features
-                // stems, leafs, and flowers are where it's at
-                let mut img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
-                // original images are roughly 680x1000
-                // resulting cropping will return roughly 620x780
+        for image_path in image_path_by_category_map.get(category_id).unwrap() {
+            // debug!("image_path: {}", image_path.to_string_lossy());
 
-                image::imageops::invert(&mut img);
+            let img = image::open(image_path.as_path()).unwrap();
+            // risk cropping more from the bottom as roots don't offer identifying species features
+            // stems, leafs, and flowers are where it's at
+            let mut img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
+            // original images are roughly 680x1000
+            // resulting cropping will return roughly 620x780
 
-                let mut img = image::imageops::brighten(&mut img, 10);
-                let img = image::imageops::contrast(&mut img, 20.0);
+            image::imageops::invert(&mut img);
 
-                let img = image::imageops::resize(&img, options.width, options.height, image::imageops::FilterType::Gaussian);
+            let mut img = image::imageops::brighten(&mut img, 10);
+            let img = image::imageops::contrast(&mut img, 20.0);
 
-                let mut idx = 0;
-                for x in 0..img.width() {
-                    for y in 0..img.height() {
-                        let pixel = img.get_pixel(x, y);
-                        let red = pixel[0];
-                        let green = pixel[1];
-                        let blue = pixel[2];
+            let img = image::imageops::resize(&img, options.width, options.height, image::imageops::FilterType::Gaussian);
 
-                        if red > 20 && green > 20 && blue > 20 {
-                            train_data.set(i, idx, red as f32 / 255.0);
-                            train_data.set(i, idx + 1, green as f32 / 255.0);
-                            train_data.set(i, idx + 2, blue as f32 / 255.0);
-                        }
-                        idx += 3;
-                        // debug!("i: {}, idx: {}", i, idx);
+            let mut idx = 0;
+            for x in 0..img.width() {
+                for y in 0..img.height() {
+                    let pixel = img.get_pixel(x, y);
+                    let red = pixel[0];
+                    let green = pixel[1];
+                    let blue = pixel[2];
+
+                    if red > 20 && green > 20 && blue > 20 {
+                        train_data.set(i, idx, red as f32 / 255.0);
+                        train_data.set(i, idx + 1, green as f32 / 255.0);
+                        train_data.set(i, idx + 2, blue as f32 / 255.0);
                     }
+                    idx += 3;
+                    // debug!("i: {}, idx: {}", i, idx);
                 }
             }
         }
-        // if i == 4 {
+        // if i == 9 {
         //     break;
         // }
     }
