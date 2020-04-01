@@ -40,8 +40,8 @@ fn main() -> io::Result<()> {
     let img = image::open(options.input).unwrap();
     let mut img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
     image::imageops::invert(&mut img);
-    let mut img = image::imageops::brighten(&mut img, 15);
-    let img = image::imageops::contrast(&mut img, 30.0);
+    let mut img = image::imageops::brighten(&mut img, 10);
+    let img = image::imageops::contrast(&mut img, 20.0);
     // normalized_image.save(options.output).ok();
 
     let resized_image = image::imageops::resize(&img, options.width, options.height, image::imageops::FilterType::Gaussian);
