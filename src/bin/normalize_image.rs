@@ -15,6 +15,12 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "normalize_image", about = "normalize image")]
 struct Options {
+    #[structopt(short = "w", long = "width", long_help = "width", default_value = "315")]
+    width: u32,
+
+    #[structopt(short = "h", long = "height", long_help = "width", default_value = "390")]
+    height: u32,
+
     #[structopt(short = "i", long = "input", long_help = "input file", required = true, parse(from_os_str))]
     input: path::PathBuf,
 
@@ -32,19 +38,13 @@ fn main() -> io::Result<()> {
     debug!("{:?}", options);
 
     let img = image::open(options.input).unwrap();
-    // 680x1000
-    // 620x780
-    let mut normalized_image = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
-    image::imageops::invert(&mut normalized_image);
-    image::imageops::brighten(&mut normalized_image, 30);
-    image::imageops::contrast(&mut normalized_image, 60.0);
+    let mut img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
+    image::imageops::invert(&mut img);
+    let mut img = image::imageops::brighten(&mut img, 15);
+    let img = image::imageops::contrast(&mut img, 30.0);
     // normalized_image.save(options.output).ok();
 
-    // let resized_image = image::imageops::resize(&normalized_image, 440, 660, image::imageops::FilterType::Gaussian);
-    // let resized_image = image::imageops::resize(&normalized_image, 85, 112, image::imageops::FilterType::Gaussian);
-    // let resized_image = image::imageops::resize(&normalized_image, 315, 400, image::imageops::FilterType::Gaussian);
-    // let resized_image = image::imageops::resize(&normalized_image, 520, 660, image::imageops::FilterType::Gaussian);
-    let resized_image = image::imageops::resize(&normalized_image, 310, 390, image::imageops::FilterType::Gaussian);
+    let resized_image = image::imageops::resize(&img, options.width, options.height, image::imageops::FilterType::Gaussian);
     resized_image.save(options.output).ok();
 
     info!("Duration: {}", format_duration(start.elapsed()).to_string());
