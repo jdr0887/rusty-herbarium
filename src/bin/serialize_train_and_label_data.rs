@@ -66,7 +66,7 @@ fn main() -> io::Result<()> {
     let image_ids_by_category_map: collections::HashMap<i32, Vec<i32>> =
         training_metadata.annotations.iter().map(|x| (x.category_id, x.image_id)).into_group_map();
 
-    let mut category_ids: Vec<_> = image_ids_by_category_map.keys().cloned().collect();
+    let mut category_ids: Vec<_> = image_ids_by_category_map.keys().cloned().take(100).collect();
     category_ids.sort();
 
     let mut training_image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>> = collections::BTreeMap::new();
@@ -74,12 +74,13 @@ fn main() -> io::Result<()> {
 
     let mut training_rows = 0;
     let mut validation_rows = 0;
+
     for i in category_ids.iter() {
         let image_ids = image_ids_by_category_map.get(i).unwrap();
         // only grabbing 2 images per category (species)...for now
         let filtered_images_ids: Vec<_> = image_ids.iter().take(2).collect();
-        for image_id in filtered_images_ids.into_iter() {
-            let image = training_metadata.images.iter().find(|e| e.id == *image_id).unwrap();
+        for image_id in filtered_images_ids.iter() {
+            let image = training_metadata.images.iter().find(|e| &e.id == *image_id).unwrap();
             let mut image_path = train_dir.clone();
             image_path.push(image.file_name.clone());
             training_image_path_by_category_map.entry(*i).or_insert(Vec::new()).push(image_path);
@@ -87,7 +88,11 @@ fn main() -> io::Result<()> {
         }
 
         if image_ids.len() > 12 {
-            let filtered_images_ids_for_validation: Vec<_> = image_ids.iter().filter(|image_id| !image_ids.contains(image_id)).take(2).collect();
+            let filtered_images_ids_for_validation: Vec<_> = image_ids
+                .iter()
+                .filter(|image_id| !filtered_images_ids.contains(image_id))
+                .take(2)
+                .collect();
             for image_id in filtered_images_ids_for_validation.into_iter() {
                 let image = training_metadata.images.iter().find(|e| e.id == *image_id).unwrap();
                 let mut image_path = train_dir.clone();
