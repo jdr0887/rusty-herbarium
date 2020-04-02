@@ -43,6 +43,9 @@ struct Options {
     )]
     serialization_dir: path::PathBuf,
 
+    #[structopt(short = "v", long = "validation_size", long_help = "validation size", required = true, default_value = "15")]
+    validation_size: i32,
+
     #[structopt(short = "l", long = "log_level", long_help = "log level", default_value = "debug")]
     log_level: String,
 }
