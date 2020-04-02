@@ -34,6 +34,9 @@ struct Options {
     #[structopt(short = "h", long = "height", long_help = "width", default_value = "390")]
     height: u32,
 
+    #[structopt(short = "c", long = "category_limit", long_help = "category limit", default_value = "-1")]
+    category_limit: i32,
+
     #[structopt(short = "b", long = "base_dir", long_help = "base directory for ", required = true, parse(from_os_str))]
     base_dir: path::PathBuf,
 
@@ -66,7 +69,10 @@ fn main() -> io::Result<()> {
     let image_ids_by_category_map: collections::HashMap<i32, Vec<i32>> =
         training_metadata.annotations.iter().map(|x| (x.category_id, x.image_id)).into_group_map();
 
-    let mut category_ids: Vec<_> = image_ids_by_category_map.keys().cloned().take(100).collect();
+    let mut category_ids: Vec<_> = match options.category_limit > -1 {
+        true => image_ids_by_category_map.keys().cloned().take(options.category_limit as usize).collect(),
+        false => image_ids_by_category_map.keys().cloned().collect(),
+    };
     category_ids.sort();
 
     let mut training_image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>> = collections::BTreeMap::new();
@@ -78,7 +84,7 @@ fn main() -> io::Result<()> {
     for i in category_ids.iter() {
         let image_ids = image_ids_by_category_map.get(i).unwrap();
         // only grabbing 2 images per category (species)...for now
-        let filtered_images_ids: Vec<_> = image_ids.iter().take(2).collect();
+        let filtered_images_ids: Vec<_> = image_ids.iter().take(3).collect();
         for image_id in filtered_images_ids.iter() {
             let image = training_metadata.images.iter().find(|e| &e.id == *image_id).unwrap();
             let mut image_path = train_dir.clone();
@@ -87,11 +93,11 @@ fn main() -> io::Result<()> {
             training_rows += 1;
         }
 
-        if image_ids.len() > 12 {
+        if image_ids.len() > 20 {
             let filtered_images_ids_for_validation: Vec<_> = image_ids
                 .iter()
                 .filter(|image_id| !filtered_images_ids.contains(image_id))
-                .take(2)
+                .take(1)
                 .collect();
             for image_id in filtered_images_ids_for_validation.into_iter() {
                 let image = training_metadata.images.iter().find(|e| e.id == *image_id).unwrap();
@@ -163,10 +169,10 @@ fn get_data_and_labels(
     let mut data = array::sparse::SparseRowArray::zeros(rows, col_size);
 
     for (i, category_id) in image_path_by_category_map_keys.iter().enumerate() {
-        labels.push(*category_id as f32);
         debug!("category_id: {}", category_id);
 
         for image_path in image_path_by_category_map.get(category_id).unwrap() {
+            labels.push(*category_id as f32);
             // debug!("image_path: {}", image_path.to_string_lossy());
 
             let img = image::open(image_path.as_path()).unwrap();
