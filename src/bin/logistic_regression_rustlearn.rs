@@ -16,6 +16,7 @@ use itertools::Itertools;
 use log::Level;
 use rustlearn::array;
 use rustlearn::linear_models::sgdclassifier;
+use rustlearn::metrics;
 use rustlearn::prelude::*;
 use std::collections;
 use std::fs;
@@ -43,9 +44,6 @@ struct Options {
     )]
     serialization_dir: path::PathBuf,
 
-    #[structopt(short = "v", long = "validation_size", long_help = "validation size", required = true, default_value = "15")]
-    validation_size: i32,
-
     #[structopt(short = "l", long = "log_level", long_help = "log level", default_value = "debug")]
     log_level: String,
 }
@@ -64,6 +62,7 @@ fn main() -> io::Result<()> {
     let training_data_reader = io::BufReader::new(fs::File::open(training_data_path).unwrap());
     let mut training_data_decoder = GzDecoder::new(training_data_reader);
     let training_data: array::sparse::SparseRowArray = bincode::deserialize_from(&mut training_data_decoder).unwrap();
+    debug!("training_data.rows(): {}", training_data.rows());
 
     // deserializing the training labels
     let mut training_labels_path = options.serialization_dir.clone();
@@ -71,17 +70,45 @@ fn main() -> io::Result<()> {
 
     let training_labels_reader = io::BufReader::new(fs::File::open(training_labels_path).unwrap());
     let mut training_labels_decoder = GzDecoder::new(training_labels_reader);
-    let training_labels: Vec<f32> = bincode::deserialize_from(&mut training_labels_decoder).unwrap();
+    let training_labels: array::dense::Array = bincode::deserialize_from(&mut training_labels_decoder).unwrap();
+    debug!("training_labels.rows(): {}", training_labels.rows());
+
+    // deserializing the validation data
+    let mut validation_data_path = options.serialization_dir.clone();
+    validation_data_path.push(format!("herbarium-validation-data-{}x{}.ser.gz", options.width, options.height));
+
+    let validation_data_reader = io::BufReader::new(fs::File::open(validation_data_path).unwrap());
+    let mut validation_data_decoder = GzDecoder::new(validation_data_reader);
+    let validation_data: array::sparse::SparseRowArray = bincode::deserialize_from(&mut validation_data_decoder).unwrap();
+    debug!("validation_data.rows(): {}", validation_data.rows());
+
+    // deserializing the validation labels
+    let mut validation_labels_path = options.serialization_dir.clone();
+    validation_labels_path.push(format!("herbarium-validation-labels-{}x{}.ser.gz", options.width, options.height));
+
+    let validation_labels_reader = io::BufReader::new(fs::File::open(validation_labels_path).unwrap());
+    let mut validation_labels_decoder = GzDecoder::new(validation_labels_reader);
+    let validation_labels: array::dense::Array = bincode::deserialize_from(&mut validation_labels_decoder).unwrap();
+    debug!("validation_labels.rows(): {}", validation_labels.rows());
 
     let mut model = sgdclassifier::Hyperparameters::new(training_data.cols())
-        .learning_rate(0.1)
-        .l1_penalty(0.0)
+        .l1_penalty(0.005)
+        .learning_rate(0.01)
         .l2_penalty(0.0)
         .one_vs_rest();
 
-    let start_fitting = Instant::now();
-    model.fit(&training_data, &array::dense::Array::from(training_labels)).unwrap();
-    debug!("model fitting duration: {}", format_duration(start_fitting.elapsed()).to_string());
+    for _ in 0..2 {
+        let start_fitting = Instant::now();
+        model.fit(&training_data, &training_labels).unwrap();
+        debug!("model fitting duration: {}", format_duration(start_fitting.elapsed()).to_string());
+    }
+
+    let prediction_output = model.predict(&validation_data).unwrap();
+
+    debug!("validation_labels: {:?}", validation_labels);
+    debug!("prediction_output: {:?}", prediction_output);
+
+    info!("accuracy: {}", metrics::accuracy_score(&validation_labels, &prediction_output));
 
     info!("Duration: {}", format_duration(start.elapsed()).to_string());
     Ok(())
