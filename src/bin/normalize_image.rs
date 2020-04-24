@@ -36,16 +36,20 @@ fn main() -> io::Result<()> {
     let log_level = Level::from_str(options.log_level.as_str()).expect("Invalid log level");
     simple_logger::init_with_level(log_level).unwrap();
     debug!("{:?}", options);
+    //680x1000
+    //400x600
 
     let img = image::open(options.input).unwrap();
-    let mut img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
-    image::imageops::invert(&mut img);
-    let mut img = image::imageops::brighten(&mut img, 10);
-    let img = image::imageops::contrast(&mut img, 20.0);
-    // normalized_image.save(options.output).ok();
+    let img = rusty_herbarium::preprocessing_step_1(img);
+    let img = rusty_herbarium::preprocessing_step_2(img);
+    // let img = rusty_herbarium::preprocessing_step_3(img);
+    // let img = rusty_herbarium::preprocessing_step_4(img);
 
-    let resized_image = image::imageops::resize(&img, options.width, options.height, image::imageops::FilterType::Gaussian);
-    resized_image.save(options.output).ok();
+    let mut img = image::imageops::resize(&img, width, height, image::imageops::FilterType::CatmullRom);
+
+    let mut img = image::imageops::grayscale(&mut img);
+
+    img.save(options.output).ok();
 
     info!("Duration: {}", format_duration(start.elapsed()).to_string());
     Ok(())
