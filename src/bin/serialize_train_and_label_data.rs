@@ -34,8 +34,8 @@ struct Options {
     #[structopt(short = "h", long = "height", long_help = "width", default_value = "390")]
     height: u32,
 
-    #[structopt(short = "c", long = "category_limit", long_help = "category limit", default_value = "-1")]
-    category_limit: i32,
+    #[structopt(short = "c", long = "category_limit", long_help = "category limit", default_value = "0")]
+    category_limit: usize,
 
     #[structopt(short = "b", long = "base_dir", long_help = "base directory for ", required = true, parse(from_os_str))]
     base_dir: path::PathBuf,
@@ -66,52 +66,47 @@ fn main() -> io::Result<()> {
 
     let training_metadata: rusty_herbarium::TrainMetadata = serde_json::from_reader(br)?;
 
-    let image_ids_by_category_map: collections::HashMap<i32, Vec<i32>> =
-        training_metadata.annotations.iter().map(|x| (x.category_id, x.image_id)).into_group_map();
-
-    let mut category_ids: Vec<_> = match options.category_limit > -1 {
-        true => image_ids_by_category_map.keys().cloned().take(options.category_limit as usize).collect(),
-        false => image_ids_by_category_map.keys().cloned().collect(),
-    };
+    let mut category_ids: Vec<i32> = training_metadata.annotations.iter().map(|x| x.category_id).collect();
     category_ids.sort();
+    category_ids.dedup();
+
+    if options.category_limit > 0 {
+        category_ids = category_ids.iter().cloned().take(options.category_limit).collect();
+    }
+
+    let image_ids_by_category_map: collections::HashMap<i32, Vec<i32>> = training_metadata.annotations.iter().map(|x| (x.category_id, x.image_id)).into_group_map();
+
+    let mut image_ids_by_category_map_keys: Vec<_> = image_ids_by_category_map.keys().cloned().collect();
+    image_ids_by_category_map_keys.sort();
 
     let mut training_image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>> = collections::BTreeMap::new();
     let mut validation_image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>> = collections::BTreeMap::new();
 
-    let mut training_rows = 0;
-    let mut validation_rows = 0;
+    info!("category_ids: {:?}", category_ids);
 
-    for i in category_ids.iter() {
-        let image_ids = image_ids_by_category_map.get(i).unwrap();
-        // only grabbing 2 images per category (species)...for now
-        let filtered_images_ids: Vec<_> = image_ids.iter().take(3).collect();
+    for category_id in category_ids.iter() {
+        let image_ids = image_ids_by_category_map.get(category_id).unwrap();
+        // only grabbing N images per category (species)
+        let filtered_images_ids: Vec<_> = image_ids.iter().take(10).collect();
         for image_id in filtered_images_ids.iter() {
             let image = training_metadata.images.iter().find(|e| &e.id == *image_id).unwrap();
             let mut image_path = train_dir.clone();
             image_path.push(image.file_name.clone());
-            training_image_path_by_category_map.entry(*i).or_insert(Vec::new()).push(image_path);
-            training_rows += 1;
+            training_image_path_by_category_map.entry(*category_id).or_insert(Vec::new()).push(image_path);
         }
 
-        if image_ids.len() > 20 {
-            let filtered_images_ids_for_validation: Vec<_> = image_ids
-                .iter()
-                .filter(|image_id| !filtered_images_ids.contains(image_id))
-                .take(1)
-                .collect();
+        if image_ids.len() > 25 {
+            let filtered_images_ids_for_validation: Vec<_> = image_ids.iter().filter(|image_id| !filtered_images_ids.contains(image_id)).take(1).collect();
             for image_id in filtered_images_ids_for_validation.into_iter() {
                 let image = training_metadata.images.iter().find(|e| e.id == *image_id).unwrap();
                 let mut image_path = train_dir.clone();
                 image_path.push(image.file_name.clone());
-                validation_image_path_by_category_map.entry(*i).or_insert(Vec::new()).push(image_path);
-                validation_rows += 1;
+                validation_image_path_by_category_map.entry(*category_id).or_insert(Vec::new()).push(image_path);
             }
         }
     }
 
-    debug!("training_rows: {}, validation_rows: {}", training_rows, validation_rows);
-
-    let (training_data, training_labels) = get_data_and_labels(options.width, options.height, training_rows, training_image_path_by_category_map)?;
+    let (training_data, training_labels) = get_data_and_labels(options.width, options.height, training_image_path_by_category_map)?;
 
     let mut training_labels_output = options.output_dir.clone();
     training_labels_output.push(format!("herbarium-training-labels-{}x{}.ser.gz", options.width, options.height));
@@ -129,8 +124,7 @@ fn main() -> io::Result<()> {
     let mut training_data_encoder = GzEncoder::new(training_data_writer, Compression::default());
     bincode::serialize_into(&mut training_data_encoder, &training_data).unwrap();
 
-    let (validation_data, validation_labels) =
-        get_data_and_labels(options.width, options.height, validation_rows, validation_image_path_by_category_map)?;
+    let (validation_data, validation_labels) = get_data_and_labels(options.width, options.height, validation_image_path_by_category_map)?;
 
     let mut validation_labels_output = options.output_dir.clone();
     validation_labels_output.push(format!("herbarium-validation-labels-{}x{}.ser.gz", options.width, options.height));
@@ -152,65 +146,188 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn get_data_and_labels(
+fn get_data_and_labels(width: u32, height: u32, image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>>) -> io::Result<(Vec<Vec<f32>>, Vec<f32>)> {
+    // let col_size = ((width * height) * 3) as usize;
+    let col_size = (width * height) as usize;
+
+    let mut image_path_by_category_map_keys: Vec<_> = image_path_by_category_map.keys().cloned().collect();
+    image_path_by_category_map_keys.sort();
+
+    let mut training_labels: Vec<f32> = Vec::new();
+    let mut training_data: Vec<Vec<f32>> = Vec::new();
+
+    for category_id in image_path_by_category_map_keys.iter() {
+        info!("category_id: {}", category_id);
+
+        for image_path in image_path_by_category_map.get(category_id).unwrap() {
+            for _ in 0..4 {
+                training_labels.push(*category_id as f32);
+            }
+            // debug!("image_path: {}", image_path.to_string_lossy());
+
+            let img = image::open(image_path.as_path()).unwrap();
+
+            let img = rusty_herbarium::preprocessing_step_1(img);
+            let img = rusty_herbarium::preprocessing_step_2(img);
+            // let img = preprocessing_step_3(img);
+            // let img = preprocessing_step_4(img);
+
+            let mut img = image::imageops::resize(&img, width, height, image::imageops::FilterType::CatmullRom);
+
+            let mut img = image::imageops::grayscale(&mut img);
+
+            let mut image_data = Vec::with_capacity(col_size);
+            for x in 0..img.width() {
+                for y in 0..img.height() {
+                    let pixel = img.get_pixel(x, y);
+                    image_data.push(pixel[0] as f32 / 255.0);
+                }
+            }
+
+            training_data.push(image_data);
+
+            let rotated90_img = image::imageops::rotate90(&mut img);
+
+            let mut image_data = Vec::with_capacity(col_size);
+            for x in 0..rotated90_img.width() {
+                for y in 0..rotated90_img.height() {
+                    let pixel = rotated90_img.get_pixel(x, y);
+                    image_data.push(pixel[0] as f32 / 255.0);
+                }
+            }
+            training_data.push(image_data);
+
+            let rotated180_img = image::imageops::rotate180(&mut img);
+
+            let mut image_data = Vec::with_capacity(col_size);
+            for x in 0..rotated180_img.width() {
+                for y in 0..rotated180_img.height() {
+                    let pixel = rotated180_img.get_pixel(x, y);
+                    image_data.push(pixel[0] as f32 / 255.0);
+                }
+            }
+            training_data.push(image_data);
+
+            let rotated270_img = image::imageops::rotate270(&mut img);
+
+            let mut image_data = Vec::with_capacity(col_size);
+            for x in 0..rotated270_img.width() {
+                for y in 0..rotated270_img.height() {
+                    let pixel = rotated270_img.get_pixel(x, y);
+                    image_data.push(pixel[0] as f32 / 255.0);
+                }
+            }
+            training_data.push(image_data);
+        }
+    }
+
+    Ok((training_data, training_labels))
+}
+
+fn get_data_and_labels_orig(
     width: u32,
     height: u32,
     rows: usize,
     image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>>,
-) -> io::Result<(array::sparse::SparseRowArray, array::dense::Array)> {
-    let col_size = ((width * height) * 3) as usize;
+) -> io::Result<(Vec<Vec<f32>>, Vec<f32>)> {
+    // let col_size = ((width * height) * 3) as usize;
+    let col_size = (width * height) as usize;
 
-    let image_path_by_category_map_keys: Vec<_> = image_path_by_category_map.keys().cloned().collect();
+    let mut image_path_by_category_map_keys: Vec<_> = image_path_by_category_map.keys().cloned().collect();
+    image_path_by_category_map_keys.sort();
 
-    // let mut training_labels: Vec<f32> = Vec::with_capacity(20);
-    // let mut training_data = array::sparse::SparseRowArray::zeros(20, col_size);
+    let mut training_labels: Vec<f32> = Vec::with_capacity(rows);
+    let mut training_data: Vec<Vec<f32>> = Vec::with_capacity(rows);
 
-    let mut labels: Vec<f32> = Vec::with_capacity(rows);
-    let mut data = array::sparse::SparseRowArray::zeros(rows, col_size);
+    // let mut training_data = array::sparse::SparseRowArray::zeros(rows, col_size);
 
-    for (i, category_id) in image_path_by_category_map_keys.iter().enumerate() {
-        debug!("category_id: {}", category_id);
+    // let mut row_idx = 0;
+    for category_id in image_path_by_category_map_keys.iter() {
+        info!("category_id: {}", category_id);
 
         for image_path in image_path_by_category_map.get(category_id).unwrap() {
-            labels.push(*category_id as f32);
+            for _ in 0..4 {
+                training_labels.push(*category_id as f32);
+            }
             // debug!("image_path: {}", image_path.to_string_lossy());
 
-            let img = image::open(image_path.as_path()).unwrap();
             // risk cropping more from the bottom as roots don't offer identifying species features
-            // stems, leafs, and flowers are where it's at
-            let mut img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
-            // original images are roughly 680x1000
-            // resulting cropping will return roughly 620x780
+            // stems, leafs, and flowers are the identifying features
+            // original images are roughly 680x1000 resulting cropping will return roughly 620x780
 
-            image::imageops::invert(&mut img);
+            let img = image::open(image_path.as_path()).unwrap();
 
-            let mut img = image::imageops::brighten(&mut img, 10);
-            let img = image::imageops::contrast(&mut img, 20.0);
+            let img = rusty_herbarium::preprocessing_step_1(img);
+            let img = rusty_herbarium::preprocessing_step_2(img);
+            // let img = preprocessing_step_3(img);
+            // let img = preprocessing_step_4(img);
 
-            let img = image::imageops::resize(&img, width, height, image::imageops::FilterType::Gaussian);
+            let mut img = image::imageops::resize(&img, width, height, image::imageops::FilterType::CatmullRom);
 
-            let mut idx = 0;
+            // let img = rusty_herbarium::crop_image(img, 140, 140, 180, 220);
+            // // let img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
+            // let mut img = image::imageops::resize(&img, width, height, image::imageops::FilterType::CatmullRom);
+            let mut img = image::imageops::grayscale(&mut img);
+            // image::imageops::invert(&mut img);
+            // let mut img = image::imageops::brighten(&mut img, -10);
+            // let mut img = image::imageops::contrast(&mut img, 40.0);
+
+            // let mut col_idx = 0;
+            let mut image_data = Vec::with_capacity(col_size);
             for x in 0..img.width() {
                 for y in 0..img.height() {
                     let pixel = img.get_pixel(x, y);
-                    let red = pixel[0];
-                    let green = pixel[1];
-                    let blue = pixel[2];
-
-                    if red > 20 && green > 20 && blue > 20 {
-                        data.set(i, idx, red as f32 / 255.0);
-                        data.set(i, idx + 1, green as f32 / 255.0);
-                        data.set(i, idx + 2, blue as f32 / 255.0);
-                    }
-                    idx += 3;
-                    // debug!("i: {}, idx: {}", i, idx);
+                    image_data.push(pixel[0] as f32 / 255.0);
+                    // image_data.push(pixel[1] as f32 / 255.0);
+                    // image_data.push(pixel[2] as f32 / 255.0);
+                    // col_idx += 1;
                 }
             }
+
+            debug!("image_data.len(): {}", image_data.len());
+            training_data.push(image_data);
+            // row_idx += 1;
+
+            // let mut img = image::imageops::rotate90(&mut img);
+            //
+            // let mut col_idx = 0;
+            // for x in 0..img.width() {
+            //     for y in 0..img.height() {
+            //         let pixel = img.get_pixel(x, y);
+            //         data.set(row_idx, col_idx, pixel[0] as f32 / 255.0);
+            //         col_idx += 1;
+            //     }
+            // }
+            // row_idx += 1;
+            //
+            // let mut img = image::imageops::rotate180(&mut img);
+            //
+            // let mut col_idx = 0;
+            // for x in 0..img.width() {
+            //     for y in 0..img.height() {
+            //         let pixel = img.get_pixel(x, y);
+            //         data.set(row_idx, col_idx, pixel[0] as f32 / 255.0);
+            //         col_idx += 1;
+            //     }
+            // }
+            // row_idx += 1;
+            //
+            // let img = image::imageops::rotate270(&mut img);
+            //
+            // let mut col_idx = 0;
+            // for x in 0..img.width() {
+            //     for y in 0..img.height() {
+            //         let pixel = img.get_pixel(x, y);
+            //         data.set(row_idx, col_idx, pixel[0] as f32 / 255.0);
+            //         col_idx += 1;
+            //     }
+            // }
+            // row_idx += 1;
         }
         // if i == 19 {
         //     break;
         // }
     }
 
-    Ok((data, array::dense::Array::from(labels)))
+    Ok((training_data, training_labels))
 }
