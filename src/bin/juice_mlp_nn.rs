@@ -101,7 +101,6 @@ fn main() -> io::Result<()> {
     let reshape_layer_type = layer::LayerType::Reshape(layers::ReshapeConfig::of_shape(&[options.batch_size, features_count]));
     net_cfg.add_layer(layer::LayerConfig::new("reshape", reshape_layer_type));
 
-
     let linear1_layer_type = layer::LayerType::Linear(layers::LinearConfig { output_size: features_count * 2 });
     net_cfg.add_layer(layer::LayerConfig::new("linear1", linear1_layer_type));
 
