@@ -102,8 +102,8 @@ fn main() -> io::Result<()> {
     let linear1_layer_type = layer::LayerType::Linear(layers::LinearConfig { output_size: features_count * 2 });
     net_cfg.add_layer(layer::LayerConfig::new("linear1", linear1_layer_type));
 
-    // net_cfg.add_layer(layer::LayerConfig::new("relu", layer::LayerType::ReLU));
-    net_cfg.add_layer(layer::LayerConfig::new("sigmoid", layer::LayerType::Sigmoid));
+    net_cfg.add_layer(layer::LayerConfig::new("relu", layer::LayerType::ReLU));
+    // net_cfg.add_layer(layer::LayerConfig::new("sigmoid", layer::LayerType::Sigmoid));
 
     let linear2_layer_type = layer::LayerType::Linear(layers::LinearConfig { output_size: features_count });
     net_cfg.add_layer(layer::LayerConfig::new("linear2", linear2_layer_type));
