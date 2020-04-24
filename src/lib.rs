@@ -208,7 +208,6 @@ pub fn normalized_train_data(
         let mut idx = 0;
         for x in 0..resized_image.width() {
             for y in 0..resized_image.height() {
-
                 let pixel = resized_image.get_pixel(x, y);
                 let red = pixel[0];
                 let green = pixel[1];
@@ -269,4 +268,319 @@ pub fn normalized_train_data(
     debug!("wrote: {}", output_path.to_string_lossy());
     Ok((array::dense::Array::from(&data), array::dense::Array::from(labels)))
     // Ok((data, array::dense::Array::from(labels)))
+}
+
+pub fn preprocessing_step_4(mut img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+    let replacement_pixel = *img.get_pixel_mut(4, 40);
+
+    // left border
+    for y in 0..img.height() {
+        for x in 0..55 {
+            let pixel = img.get_pixel_mut(x, y);
+            let red = pixel[0];
+            let green = pixel[1];
+            let blue = pixel[2];
+
+            let tmp = vec![red, green, blue];
+            let min = itertools::min(tmp.clone()).unwrap();
+            let max = itertools::max(tmp.clone()).unwrap();
+
+            if (max - min) <= 10 {
+                pixel[0] = replacement_pixel[0];
+                pixel[1] = replacement_pixel[1];
+                pixel[2] = replacement_pixel[2];
+            }
+        }
+    }
+
+    // right border
+    for y in 0..img.height() {
+        for x in (img.width() - 55)..img.width() {
+            let pixel = img.get_pixel_mut(x, y);
+            let red = pixel[0];
+            let green = pixel[1];
+            let blue = pixel[2];
+
+            let tmp = vec![red, green, blue];
+            let min = itertools::min(tmp.clone()).unwrap();
+            let max = itertools::max(tmp.clone()).unwrap();
+
+            if (max - min) <= 10 {
+                pixel[0] = replacement_pixel[0];
+                pixel[1] = replacement_pixel[1];
+                pixel[2] = replacement_pixel[2];
+            }
+        }
+    }
+
+    // bottom border
+    for y in (img.height() - 40)..img.height() {
+        for x in 0..img.width() {
+            let pixel = img.get_pixel_mut(x, y);
+            let red = pixel[0];
+            let green = pixel[1];
+            let blue = pixel[2];
+
+            let tmp = vec![red, green, blue];
+            let min = itertools::min(tmp.clone()).unwrap();
+            let max = itertools::max(tmp.clone()).unwrap();
+
+            if (max - min) <= 10 {
+                pixel[0] = replacement_pixel[0];
+                pixel[1] = replacement_pixel[1];
+                pixel[2] = replacement_pixel[2];
+            }
+        }
+    }
+
+    // top border
+    for y in 0..40 {
+        for x in 0..img.width() {
+            let pixel = img.get_pixel_mut(x, y);
+            let red = pixel[0];
+            let green = pixel[1];
+            let blue = pixel[2];
+
+            let tmp = vec![red, green, blue];
+            let min = itertools::min(tmp.clone()).unwrap();
+            let max = itertools::max(tmp.clone()).unwrap();
+
+            if (max - min) <= 10 {
+                pixel[0] = replacement_pixel[0];
+                pixel[1] = replacement_pixel[1];
+                pixel[2] = replacement_pixel[2];
+            }
+        }
+    }
+    img
+}
+
+pub fn preprocessing_step_3(mut img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+    let replacement_pixel = *img.get_pixel_mut(4, 40);
+
+    for y in 0..img.height() {
+        for x_window in (0..img.width()).collect::<Vec<u32>>().windows(19) {
+            let mut window_data = Vec::new();
+
+            for x in x_window.iter() {
+                let pixel = img.get_pixel(*x, y);
+                let red = pixel[0];
+                let green = pixel[1];
+                let blue = pixel[2];
+                // debug!("x: {}, red: {}, green: {}, blue: {}", x, red, green, blue);
+                window_data.push((red as f32, green as f32, blue as f32));
+            }
+
+            let range = itertools::min(x_window.clone()).unwrap()..itertools::max(x_window.clone()).unwrap();
+
+            let reds: Vec<_> = window_data.iter().map(|e| e.0).collect();
+            let reds_mean = statistical::mean(&reds);
+            let reds_stddev = statistical::standard_deviation(&reds, None);
+
+            let greens: Vec<_> = window_data.iter().map(|e| e.1).collect();
+            let greens_mean = statistical::mean(&greens);
+            let greens_stddev = statistical::population_standard_deviation(&greens, None);
+
+            let blues: Vec<_> = window_data.iter().map(|e| e.2).collect();
+            let blues_mean = statistical::mean(&blues);
+            let blues_stddev = statistical::population_standard_deviation(&blues, None);
+
+            // filter out mostly white pixels
+            if reds_mean > 210.0 && greens_mean > 210.0 && blues_mean > 210.0 {
+                continue;
+            }
+
+            // filter out mostly black pixels
+            if reds_mean < 52.0 && greens_mean < 52.0 && blues_mean < 52.0 {
+                continue;
+            }
+
+            // filter out non-common color range
+            if reds_stddev > 9.0 || greens_stddev > 9.0 || blues_stddev > 9.0 {
+                continue;
+            }
+
+            debug!(
+                "range: {:?}, reds_mean: {}, greens_mean: {}, blues_mean: {}, reds_stddev: {}, greens_stddev: {}, blues_stddev: {}",
+                range, reds_mean, greens_mean, blues_mean, reds_stddev, greens_stddev, blues_stddev
+            );
+
+            for x in x_window.iter() {
+                let pixel = img.get_pixel_mut(*x, y);
+                pixel[0] = replacement_pixel[0];
+                pixel[1] = replacement_pixel[1];
+                pixel[2] = replacement_pixel[2];
+            }
+        }
+    }
+
+    img
+}
+
+pub fn preprocessing_step_2(img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+    let mut img = image::imageops::flip_vertical(&img);
+    image::imageops::invert(&mut img);
+    let mut img = image::imageops::contrast(&mut img, 10.0);
+
+    let mut cutoff = 0;
+    for y in 10..(img.height() / 2) {
+        let mut row_data = Vec::new();
+        for x in 130..(img.width() - 130) {
+            let pixel = img.get_pixel(x, y);
+            let red = pixel[0];
+            let blue = pixel[2];
+            let green = pixel[1];
+
+            if red < 110 && green < 110 && blue < 110 {
+                continue;
+            }
+
+            // debug!("x: {}, y: {}, red: {}, green: {}, blue: {}", x, y, red, green, blue);
+            row_data.push(red);
+            row_data.push(green);
+            row_data.push(blue);
+        }
+        let avg = row_data.iter().sum::<u8>() as f32 / row_data.len() as f32;
+        debug!("y: {}, row_data average: {}", y, avg);
+        if !avg.is_nan() && avg > 1f32 {
+            cutoff = y;
+            break;
+        }
+    }
+    debug!("cutoff: {}", cutoff);
+
+    let img_height = img.height();
+    let img_width = img.width();
+
+    let mut img = image::imageops::crop(&mut img, 0, cutoff, img_width, img_height).to_image();
+    let mut img = image::imageops::flip_vertical(&img);
+
+    let mut img = image::imageops::contrast(&mut img, -10.0);
+    image::imageops::invert(&mut img);
+    img
+}
+
+pub fn preprocessing_step_1(mut img: image::DynamicImage) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+    let mut left_border = Vec::new();
+
+    'outer: for y in 0..img.height() {
+        if !(100u32..900u32).contains(&y) {
+            continue 'outer;
+        }
+        'inner: for x in 0..img.width() {
+            if !(10u32..40u32).contains(&x) {
+                continue 'inner;
+            }
+
+            let pixel = img.get_pixel(x, y);
+            let red = pixel[0];
+            let green = pixel[1];
+            let blue = pixel[2];
+
+            debug!("x: {}, y: {}, red: {}, green: {}, blue: {}", x, y, red, green, blue);
+            left_border.push(x);
+
+            if red > 100 && green > 100 && blue > 100 {
+                continue 'outer;
+            }
+        }
+    }
+
+    debug!("left_border max: {}", left_border.iter().max().unwrap());
+    let from_left = left_border.iter().max().unwrap() + 1;
+
+    let img_height = img.height();
+    let img_width = img.width();
+
+    let img = image::imageops::crop(&mut img, from_left, 0, img_width, img_height).to_image();
+
+    let mut img = image::imageops::flip_horizontal(&img);
+
+    let mut right_border = Vec::new();
+
+    'outer: for y in 0..img.height() {
+        if !(100u32..900u32).contains(&y) {
+            continue;
+        }
+        'inner: for x in 0..img.width() {
+            if !(10u32..40u32).contains(&x) {
+                continue;
+            }
+            let pixel = img.get_pixel(x, y);
+            let red = pixel[0];
+            let green = pixel[1];
+            let blue = pixel[2];
+
+            debug!("x: {}, y: {}, red: {}, green: {}, blue: {}", x, y, red, green, blue);
+            right_border.push(x);
+
+            if red > 100 && green > 100 && blue > 100 {
+                continue 'outer;
+            }
+        }
+    }
+
+    debug!("right_border max: {}", right_border.iter().max().unwrap());
+    let from_right = right_border.iter().max().unwrap() + 1;
+
+    let img = image::imageops::crop(&mut img, from_right, 0, img_width, img_height).to_image();
+
+    let mut img = image::imageops::flip_horizontal(&img);
+
+    let mut top_border = Vec::new();
+
+    for y in 0..img.height() {
+        if !(20u32..100u32).contains(&y) {
+            continue;
+        }
+        let pixel = img.get_pixel(0u32, y);
+        let red = pixel[0];
+        let green = pixel[1];
+        let blue = pixel[2];
+
+        debug!("y: {}, red: {}, green: {}, blue: {}", y, red, green, blue);
+        top_border.push(y);
+
+        if red > 100 && green > 100 && blue > 100 {
+            break;
+        }
+    }
+
+    debug!("top_border max: {}", top_border.iter().max().unwrap());
+    let from_top = top_border.iter().max().unwrap() + 1;
+
+    let img_height = img.height();
+    let img_width = img.width();
+
+    let img = image::imageops::crop(&mut img, 0, from_top, img_width, img_height).to_image();
+
+    let mut img = image::imageops::flip_vertical(&img);
+
+    let mut bottom_border = Vec::new();
+
+    for y in 0..img.height() {
+        if !(10u32..50u32).contains(&y) {
+            continue;
+        }
+
+        let pixel = img.get_pixel(0u32, y);
+        let red = pixel[0];
+        let green = pixel[1];
+        let blue = pixel[2];
+
+        debug!("y: {}, red: {}, green: {}, blue: {}", y, red, green, blue);
+        bottom_border.push(y);
+
+        if red > 100 && green > 100 && blue > 100 {
+            break;
+        }
+    }
+
+    debug!("bottom_border max: {}", bottom_border.iter().max().unwrap());
+    let from_bottom = bottom_border.iter().max().unwrap() + 1;
+
+    let img = image::imageops::crop(&mut img, 0, from_bottom, img_width, img_height).to_image();
+    let img = image::imageops::flip_vertical(&img);
+    let img = image::imageops::resize(&img, 600, 800, image::imageops::FilterType::CatmullRom);
+    img
 }
