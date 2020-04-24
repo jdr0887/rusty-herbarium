@@ -45,9 +45,9 @@ fn main() -> io::Result<()> {
     // let img = rusty_herbarium::preprocessing_step_3(img);
     // let img = rusty_herbarium::preprocessing_step_4(img);
 
-    let mut img = image::imageops::resize(&img, width, height, image::imageops::FilterType::CatmullRom);
+    let mut img = image::imageops::resize(&img, options.width, options.height, image::imageops::FilterType::CatmullRom);
 
-    let mut img = image::imageops::grayscale(&mut img);
+    let img = image::imageops::grayscale(&mut img);
 
     img.save(options.output).ok();
 

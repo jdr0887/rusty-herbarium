@@ -10,14 +10,10 @@ extern crate structopt;
 
 use bincode;
 use flate2::read::GzDecoder;
-use flate2::Compression;
 use humantime::format_duration;
-use itertools::Itertools;
 use log::Level;
 use rustlearn::array;
-use rustlearn::linear_models::sgdclassifier;
 use rustlearn::prelude::*;
-use std::collections;
 use std::fs;
 use std::io;
 use std::path;
@@ -34,13 +30,7 @@ struct Options {
     #[structopt(short = "h", long = "height", long_help = "width", default_value = "390")]
     height: u32,
 
-    #[structopt(
-        short = "s",
-        long = "serialization_dir",
-        long_help = "serialization directory",
-        required = true,
-        parse(from_os_str)
-    )]
+    #[structopt(short = "s", long = "serialization_dir", long_help = "serialization directory", required = true, parse(from_os_str))]
     serialization_dir: path::PathBuf,
 
     #[structopt(short = "l", long = "log_level", long_help = "log level", default_value = "debug")]
@@ -61,11 +51,7 @@ fn main() -> io::Result<()> {
     let training_data_reader = io::BufReader::new(fs::File::open(training_data_path).unwrap());
     let mut training_data_decoder = GzDecoder::new(training_data_reader);
     let training_data: array::sparse::SparseRowArray = bincode::deserialize_from(&mut training_data_decoder).unwrap();
-    debug!(
-        "training_data.rows(): {}, training_data.cols(): {}",
-        training_data.rows(),
-        training_data.cols()
-    );
+    debug!("training_data.rows(): {}, training_data.cols(): {}", training_data.rows(), training_data.cols());
 
     // deserializing the training labels
     let mut training_labels_path = options.serialization_dir.clone();

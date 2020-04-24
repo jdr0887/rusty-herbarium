@@ -10,9 +10,6 @@ extern crate rusty_machine;
 extern crate serde;
 extern crate serde_derive;
 
-use crate::rustlearn::prelude::IndexableMatrix;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use image::GenericImageView;
 use itertools::Itertools;
 use rustlearn::array;
@@ -21,10 +18,6 @@ use std::collections;
 use std::fs;
 use std::io;
 use std::path;
-use std::str::FromStr;
-use std::time::Instant;
-use structopt::StructOpt;
-use walkdir::WalkDir;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Annotation {
@@ -98,13 +91,7 @@ pub struct PixelColor {
     pub blue: u8,
 }
 
-pub fn crop_image(
-    mut img: image::DynamicImage,
-    from_left: u32,
-    from_right: u32,
-    from_top: u32,
-    from_bottom: u32,
-) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
+pub fn crop_image(mut img: image::DynamicImage, from_left: u32, from_right: u32, from_top: u32, from_bottom: u32) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     let img_height = img.height();
     let img_width = img.width();
 
@@ -161,11 +148,8 @@ pub fn normalized_train_data(
 ) -> io::Result<(array::dense::Array, array::dense::Array)> {
     let mut file_entries = Vec::new();
 
-    let images_by_region_and_category_map: collections::HashMap<(i32, i32), Vec<i32>> = train_metadata
-        .annotations
-        .iter()
-        .map(|x| ((x.region_id, x.category_id), x.image_id))
-        .into_group_map();
+    let images_by_region_and_category_map: collections::HashMap<(i32, i32), Vec<i32>> =
+        train_metadata.annotations.iter().map(|x| ((x.region_id, x.category_id), x.image_id)).into_group_map();
     let mut region_and_category_ids: Vec<_> = images_by_region_and_category_map.keys().collect();
     region_and_category_ids.sort();
 
@@ -205,7 +189,7 @@ pub fn normalized_train_data(
 
         let resized_image = image::imageops::resize(&cropped_image, resized_width, resized_height, image::imageops::FilterType::Gaussian);
         let mut features = Vec::with_capacity(col_size);
-        let mut idx = 0;
+        // let mut idx = 0;
         for x in 0..resized_image.width() {
             for y in 0..resized_image.height() {
                 let pixel = resized_image.get_pixel(x, y);
@@ -452,7 +436,7 @@ pub fn preprocessing_step_2(img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) -
     let img_height = img.height();
     let img_width = img.width();
 
-    let mut img = image::imageops::crop(&mut img, 0, cutoff, img_width, img_height).to_image();
+    let img = image::imageops::crop(&mut img, 0, cutoff, img_width, img_height).to_image();
     let mut img = image::imageops::flip_vertical(&img);
 
     let mut img = image::imageops::contrast(&mut img, -10.0);

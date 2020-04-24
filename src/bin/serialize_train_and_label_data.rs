@@ -14,9 +14,6 @@ use flate2::Compression;
 use humantime::format_duration;
 use itertools::Itertools;
 use log::Level;
-use rayon::prelude::*;
-use rustlearn::array;
-use rustlearn::prelude::*;
 use std::collections;
 use std::fs;
 use std::io;
@@ -82,7 +79,7 @@ fn main() -> io::Result<()> {
     let mut training_image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>> = collections::BTreeMap::new();
     let mut validation_image_path_by_category_map: collections::BTreeMap<i32, Vec<path::PathBuf>> = collections::BTreeMap::new();
 
-    info!("category_ids: {:?}", category_ids);
+    debug!("category_ids: {:?}", category_ids);
 
     for category_id in category_ids.iter() {
         let image_ids = image_ids_by_category_map.get(category_id).unwrap();
@@ -157,7 +154,7 @@ fn get_data_and_labels(width: u32, height: u32, image_path_by_category_map: coll
     let mut training_data: Vec<Vec<f32>> = Vec::new();
 
     for category_id in image_path_by_category_map_keys.iter() {
-        info!("category_id: {}", category_id);
+        debug!("category_id: {}", category_id);
 
         for image_path in image_path_by_category_map.get(category_id).unwrap() {
             for _ in 0..4 {
@@ -267,7 +264,7 @@ fn get_data_and_labels_orig(
             // let img = rusty_herbarium::crop_image(img, 140, 140, 180, 220);
             // // let img = rusty_herbarium::crop_image(img, 30, 30, 80, 140);
             // let mut img = image::imageops::resize(&img, width, height, image::imageops::FilterType::CatmullRom);
-            let mut img = image::imageops::grayscale(&mut img);
+            let img = image::imageops::grayscale(&mut img);
             // image::imageops::invert(&mut img);
             // let mut img = image::imageops::brighten(&mut img, -10);
             // let mut img = image::imageops::contrast(&mut img, 40.0);

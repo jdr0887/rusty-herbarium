@@ -11,7 +11,6 @@ extern crate serde_derive;
 extern crate structopt;
 
 use coaster::prelude::*;
-use coaster_nn::*;
 use flate2::read::GzDecoder;
 use humantime::format_duration;
 use juice::layer;
@@ -19,7 +18,6 @@ use juice::layers;
 use juice::solver;
 use juice::util;
 use log::Level;
-use std::collections;
 use std::fs;
 use std::io;
 use std::path;

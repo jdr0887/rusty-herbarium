@@ -49,28 +49,28 @@ fn main() -> io::Result<()> {
     let metadata: rusty_herbarium::TrainMetadata = serde_json::from_reader(br)?;
     //info!("metadata.info.year: {}", metadata.info.year);
 
-    let output_options = fs::OpenOptions::new()
-        .write(true)
-        .append(false)
-        .create(true)
-        .open(&options.output.as_path())
-        .unwrap();
+    let output_options = fs::OpenOptions::new().write(true).append(false).create(true).open(&options.output.as_path()).unwrap();
 
     let bw = io::BufWriter::new(output_options);
 
     let mut writer = csv::Writer::from_writer(bw);
-    writer.write_record(&["annotation_id", "category_id", "family", "genus", "region_id", "name", "image_id", "width", "height", "file_name"])?;
+    writer.write_record(&[
+        "annotation_id",
+        "category_id",
+        "family",
+        "genus",
+        "region_id",
+        "name",
+        "image_id",
+        "width",
+        "height",
+        "file_name",
+    ])?;
     for annotation in metadata.annotations.iter() {
         let mut row = Vec::new();
         row.push(annotation.id.to_string());
 
-        let category = metadata
-            .categories
-            .iter()
-            .filter(|e| e.id == annotation.category_id)
-            .take(1)
-            .nth(0)
-            .unwrap();
+        let category = metadata.categories.iter().filter(|e| e.id == annotation.category_id).take(1).nth(0).unwrap();
         row.push(category.id.to_string());
         row.push(category.family.to_string());
         row.push(category.genus.to_string());

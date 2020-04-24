@@ -35,13 +35,7 @@ struct Options {
     #[structopt(short = "e", long = "epochs", long_help = "epochs", default_value = "1")]
     epochs: u32,
 
-    #[structopt(
-        short = "s",
-        long = "serialization_dir",
-        long_help = "serialization directory",
-        required = true,
-        parse(from_os_str)
-    )]
+    #[structopt(short = "s", long = "serialization_dir", long_help = "serialization directory", required = true, parse(from_os_str))]
     serialization_dir: path::PathBuf,
 
     #[structopt(short = "l", long = "log_level", long_help = "log level", default_value = "debug")]

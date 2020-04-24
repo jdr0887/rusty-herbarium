@@ -12,14 +12,10 @@ use humantime::format_duration;
 use image::GenericImageView;
 use itertools::Itertools;
 use log::Level;
-use rusty_machine::analysis::score::accuracy;
-use rusty_machine::data::transforms::{Standardizer, Transformer};
 use rusty_machine::learning;
 use rusty_machine::learning::optim::grad_desc::GradientDesc;
 use rusty_machine::linalg;
 use rusty_machine::prelude::SupModel;
-use rusty_machine::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::collections;
 use std::fs;
 use std::io;
@@ -57,11 +53,8 @@ fn main() -> io::Result<()> {
     let train_metadata: rusty_herbarium::TrainMetadata = serde_json::from_reader(br)?;
     //info!("metadata.info.year: {}", metadata.info.year);
 
-    let images_by_region_and_category_map: collections::HashMap<(i32, i32), Vec<i32>> = train_metadata
-        .annotations
-        .iter()
-        .map(|x| ((x.region_id, x.category_id), x.image_id))
-        .into_group_map();
+    let images_by_region_and_category_map: collections::HashMap<(i32, i32), Vec<i32>> =
+        train_metadata.annotations.iter().map(|x| ((x.region_id, x.category_id), x.image_id)).into_group_map();
     let mut region_and_category_ids: Vec<_> = images_by_region_and_category_map.keys().collect();
     region_and_category_ids.sort();
 

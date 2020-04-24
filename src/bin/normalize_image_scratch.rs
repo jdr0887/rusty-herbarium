@@ -5,9 +5,7 @@ extern crate image;
 extern crate statistical;
 extern crate structopt;
 
-use crate::image::GenericImageView;
 use humantime::format_duration;
-use itertools::Itertools;
 use log::Level;
 use std::io;
 use std::path;

@@ -42,8 +42,7 @@ fn main() -> io::Result<()> {
     let metadata: rusty_herbarium::TrainMetadata = serde_json::from_reader(br)?;
     //info!("metadata.info.year: {}", metadata.info.year);
 
-    let categories_by_region_map: collections::HashMap<i32, Vec<i32>> =
-        metadata.annotations.iter().map(|x| (x.region_id, x.category_id)).into_group_map();
+    let categories_by_region_map: collections::HashMap<i32, Vec<i32>> = metadata.annotations.iter().map(|x| (x.region_id, x.category_id)).into_group_map();
     let mut categories_by_region_map_keys: Vec<_> = categories_by_region_map.keys().collect();
     categories_by_region_map_keys.sort();
 
@@ -55,10 +54,7 @@ fn main() -> io::Result<()> {
     let mut images_by_family_map: collections::HashMap<String, Vec<i32>> = collections::HashMap::new();
     for annotation in metadata.annotations.iter() {
         let category = metadata.categories.iter().find(|e| e.id == annotation.category_id).unwrap();
-        images_by_family_map
-            .entry(category.family.clone())
-            .or_insert(Vec::new())
-            .push(annotation.image_id);
+        images_by_family_map.entry(category.family.clone()).or_insert(Vec::new()).push(annotation.image_id);
     }
 
     let mut images_by_family_map_keys: Vec<_> = images_by_family_map.keys().collect();
@@ -69,8 +65,7 @@ fn main() -> io::Result<()> {
         info!("family: {}, images count: {}", k, images_by_family_map.get(k).unwrap().len());
     }
 
-    let images_by_category_map: collections::HashMap<i32, Vec<i32>> =
-        metadata.annotations.iter().map(|x| (x.category_id, x.image_id)).into_group_map();
+    let images_by_category_map: collections::HashMap<i32, Vec<i32>> = metadata.annotations.iter().map(|x| (x.category_id, x.image_id)).into_group_map();
     let mut images_by_category_map_keys: Vec<_> = images_by_category_map.keys().collect();
     images_by_category_map_keys.sort();
     info!("categories count: {}", images_by_category_map_keys.len());
